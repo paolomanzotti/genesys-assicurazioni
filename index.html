@@ -175,7 +175,12 @@
       if (customer) document.querySelector('[data-customer-first-name]').textContent = customer.firstName;
     }
 
+    var messengerReady = false;
+    var currentCustomer = null;
+
     function shareWithMessenger(customer) {
+      currentCustomer = customer;
+      if (!messengerReady) return;
       if (customer) {
         Genesys('command', 'Database.set', { messaging: { customAttributes: {
           Customer_ID: customer.id, Customer_Name: customer.firstName + ' ' + customer.lastName } } });
@@ -187,6 +192,10 @@
     var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     renderAccount(saved);
     shareWithMessenger(saved);
+    Genesys('subscribe', 'Database.ready', function () {
+      messengerReady = true;
+      shareWithMessenger(currentCustomer);
+    });
 
     document.querySelector('[data-open-login]').addEventListener('click', function () { modal.hidden = false; });
     document.querySelector('[data-close-login]').addEventListener('click', function () { modal.hidden = true; });
