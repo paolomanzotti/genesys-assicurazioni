@@ -34,9 +34,33 @@
         <a href="#sinistri">Sinistri</a>
         <a href="#assistenza">Assistenza</a>
       </nav>
+      <div class="account" data-logged-out>
+        <button class="btn btn-ghost btn-small" data-open-login>Area clienti</button>
+      </div>
+      <div class="account" data-logged-in hidden>
+        <span class="greeting">Ciao, <strong data-customer-first-name></strong></span>
+        <button class="link link-plain" data-logout>Esci</button>
+      </div>
       <button class="btn btn-primary btn-small" data-open-chat>Parla con noi</button>
     </div>
   </header>
+
+  <div class="modal" data-login-modal hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
+      <button class="modal-close" data-close-login aria-label="Chiudi">×</button>
+      <p class="eyebrow">Area clienti</p>
+      <h2 id="login-title">Accedi al tuo profilo</h2>
+      <p class="modal-text">Sito dimostrativo: scegli il cliente demo con cui accedere. In chat riceverai su WhatsApp il codice dei sinistri che apri.</p>
+      <button class="customer" data-login>
+        <span class="customer-avatar">MB</span>
+        <span class="customer-info">
+          <strong>Marco Bianchi</strong>
+          <span>Cliente Gold · Polizza Auto 44AB12</span>
+        </span>
+        <span class="customer-go">Accedi →</span>
+      </button>
+    </div>
+  </div>
 
   <main>
     <section class="hero">
@@ -141,6 +165,44 @@
   </footer>
 
   <script>
+    var DEMO_CUSTOMER = { id: 'd156d36f-0375-48c7-8913-92c22ba1659e', firstName: 'Marco', lastName: 'Bianchi' };
+    var STORAGE_KEY = 'genesys-assicurazioni-customer';
+    var modal = document.querySelector('[data-login-modal]');
+
+    function renderAccount(customer) {
+      document.querySelector('[data-logged-out]').hidden = !!customer;
+      document.querySelector('[data-logged-in]').hidden = !customer;
+      if (customer) document.querySelector('[data-customer-first-name]').textContent = customer.firstName;
+    }
+
+    function shareWithMessenger(customer) {
+      if (customer) {
+        Genesys('command', 'Database.set', { messaging: { customAttributes: {
+          Customer_ID: customer.id, Customer_Name: customer.firstName + ' ' + customer.lastName } } });
+      } else {
+        Genesys('command', 'Database.removeAll');
+      }
+    }
+
+    var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    renderAccount(saved);
+    shareWithMessenger(saved);
+
+    document.querySelector('[data-open-login]').addEventListener('click', function () { modal.hidden = false; });
+    document.querySelector('[data-close-login]').addEventListener('click', function () { modal.hidden = true; });
+    modal.addEventListener('click', function (event) { if (event.target === modal) modal.hidden = true; });
+    document.querySelector('[data-login]').addEventListener('click', function () {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEMO_CUSTOMER));
+      renderAccount(DEMO_CUSTOMER);
+      shareWithMessenger(DEMO_CUSTOMER);
+      modal.hidden = true;
+    });
+    document.querySelector('[data-logout]').addEventListener('click', function () {
+      localStorage.removeItem(STORAGE_KEY);
+      renderAccount(null);
+      shareWithMessenger(null);
+    });
+
     document.querySelectorAll('[data-open-chat]').forEach(function (button) {
       button.addEventListener('click', function () {
         Genesys('command', 'Messenger.open', {});
