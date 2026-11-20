@@ -52,10 +52,9 @@ p { margin: 0 0 16px; }
 
 .topbar { position: sticky; top: 0; z-index: 10; background: rgba(249, 248, 245, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--sand); }
 .topbar-inner { display: flex; align-items: center; gap: 32px; height: 72px; }
-.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--navy); }
-.brand-logo { height: 26px; width: auto; display: block; }
-.brand-sub { font-size: 1.1rem; font-weight: 700; padding-left: 12px; border-left: 2px solid var(--orange); line-height: 1; }
-.brand-sub-light { color: #fff; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--navy); }
+.brand-icon { height: 30px; width: auto; display: block; }
+.brand-name { font-size: 1.2rem; letter-spacing: -0.01em; }
 .nav { display: flex; gap: 28px; margin-left: auto; }
 .nav a { color: var(--navy); text-decoration: none; font-weight: 500; }
 .nav a:hover { color: var(--orange); }
@@ -105,6 +104,7 @@ p { margin: 0 0 16px; }
 
 .footer { background: var(--navy-deep); color: #fff; padding: 40px 0; }
 .footer-inner { display: flex; gap: 32px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.footer .brand { color: #fff; }
 .footer p { margin: 0; color: #7a8ec7; font-size: 0.9rem; max-width: 640px; }
 
 @media (max-width: 900px) {
