@@ -158,6 +158,8 @@
       $('[data-login-panel]').hidden = false;
     }
 
+    function statusOf(item) { return (item.status || {}).id; }
+
     function shortCode(id) { return id.slice(0, 8).toUpperCase(); }
 
     function formatDate(value) {
@@ -174,7 +176,7 @@
       var fields = item.customFields || {};
       var values = {
         code: shortCode(item.id),
-        status: (statuses[item.statusId] || {}).name || '—',
+        status: (statuses[statusOf(item)] || {}).name || '—',
         policy: fields.policy_number_identifier || '—',
         date: formatDate(fields.claim_date_date),
         location: fields.claim_location_longtext || '—',
@@ -238,7 +240,7 @@
       if (!current) return;
       var amount = parseFloat($('#verified-amount').value);
       var target = Object.keys(statuses).find(function (id) { return statuses[id].name === TARGET_STATUS; });
-      var path = current.statusId === target ? [] : statusPath(current.statusId, target);
+      var path = statusOf(current) === target ? [] : statusPath(statusOf(current), target);
       if (current.statusCategory === 'Closed' || !path) return notice('Dallo stato attuale il sinistro non può passare in attesa di approvazione.', 'error');
       try {
         await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { customFields: { verified_claim_amount_number: amount } });
