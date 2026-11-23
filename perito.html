@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -309,7 +309,18 @@
       var path = statusOf(current) === target ? [] : statusPath(statusOf(current), target);
       if (current.statusCategory === 'Closed' || !path) return notice('Dallo stato attuale il sinistro non può passare in attesa di approvazione.', 'error');
       try {
-        await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { customFields: inspection });
+        try {
+          await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { customFields: inspection });
+        } catch (error) {
+          if (error.message.indexOf('Additional properties are not allowed') < 0) throw error;
+          var summary = 'Perizia: ' + [inspection.vehicle_brand_text, inspection.vehicle_model_text].join(' ') +
+            ', targa ' + inspection.license_plate_text + (owner ? ', proprietario ' + owner : '') + '.';
+          var description = (current.customFields || {}).claim_description_longtext || '';
+          await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { customFields: {
+            verified_claim_amount_number: amount,
+            claim_description_longtext: description ? description + ' | ' + summary : summary
+          } });
+        }
         for (var i = 0; i < path.length; i++) {
           current = await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { statusId: path[i] });
         }
