@@ -41,6 +41,12 @@
         <button class="btn btn-primary" data-login>Accedi</button>
       </div>
 
+      <div class="panel" data-wrong-org hidden>
+        <h3>Org Genesys Cloud non corretta</h3>
+        <p class="muted">Hai effettuato l'accesso all'org <strong data-wrong-org-name></strong>. I sinistri di Genesys Assicurazioni sono nell'org <strong>genesys-italy-sc</strong>: esci da Genesys Cloud e accedi di nuovo con l'utente di quell'org.</p>
+        <button class="btn btn-primary" data-switch-org>Esci e cambia org</button>
+      </div>
+
       <div class="panel" data-work-panel hidden>
         <form class="form" data-search>
           <label for="claim-code">Codice del sinistro</label>
@@ -90,6 +96,8 @@
     var WORKTYPE = 'eb4812bc-4eff-44ee-ae9e-c59b4ef6a306';
     var WORKBIN = '1386df72-7bd9-42f4-be10-c6fa29583b4f';
     var TARGET_STATUS = 'Approval pending';
+    var ORG_ID = '4b61be9c-7b5a-43dd-a62b-6dc4a01dccc7';
+    var ORG_NAME = 'genesys-italy-sc';
     var TOKEN_KEY = 'genesys-assicurazioni-expert-token';
     var VERIFIER_KEY = 'genesys-assicurazioni-expert-verifier';
 
@@ -114,7 +122,7 @@
       sessionStorage.setItem(VERIFIER_KEY, verifier);
       var challenge = base64Url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
       location.href = 'https://login.' + REGION + '/oauth/authorize?' + new URLSearchParams({
-        client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI,
+        client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI, org: ORG_NAME,
         code_challenge: challenge, code_challenge_method: 'S256'
       });
     }
@@ -155,6 +163,7 @@
       sessionStorage.removeItem(TOKEN_KEY);
       $('[data-expert]').hidden = true;
       $('[data-work-panel]').hidden = true;
+      $('[data-wrong-org]').hidden = true;
       $('[data-login-panel]').hidden = false;
     }
 
@@ -208,6 +217,14 @@
       $('[data-work-panel]').hidden = false;
       $('[data-expert]').hidden = false;
       try {
+        var session = await api('GET', '/api/v2/tokens/me');
+        var org = session.organization || {};
+        if (org.id !== ORG_ID) {
+          $('[data-work-panel]').hidden = true;
+          $('[data-wrong-org]').hidden = false;
+          $('[data-wrong-org-name]').textContent = org.name || 'sconosciuta';
+          return;
+        }
         var me = await api('GET', '/api/v2/users/me');
         $('[data-expert-name]').textContent = me.name;
         var list = await api('GET', '/api/v2/taskmanagement/worktypes/' + WORKTYPE + '/statuses');
@@ -263,6 +280,10 @@
 
     $('[data-login]').addEventListener('click', login);
     $('[data-logout]').addEventListener('click', logout);
+    $('[data-switch-org]').addEventListener('click', function () {
+      logout();
+      location.href = 'https://login.' + REGION + '/logout?' + new URLSearchParams({ client_id: CLIENT_ID, redirect_uri: REDIRECT_URI });
+    });
 
     (async function () {
       var code = new URLSearchParams(location.search).get('code');
