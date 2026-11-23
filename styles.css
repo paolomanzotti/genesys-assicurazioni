@@ -144,6 +144,14 @@ p { margin: 0 0 16px; }
 .claim-data .wide { grid-column: 1 / -1; }
 .claim-data dt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--slate); }
 .claim-data dd { margin: 2px 0 0; font-weight: 500; }
+.claim-data .owner { background: var(--cream); border-left: 4px solid var(--orange); border-radius: 12px; padding: 14px 18px; }
+.claim-data .owner dd { font-size: 1.3rem; font-weight: 700; }
+.inspection { gap: 16px; }
+.inspection h3 { margin: 0; }
+.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.form-field { display: grid; gap: 6px; }
+.form-field input { min-width: 0; }
+.inspection .btn { justify-self: start; }
 .notice { margin: 0; padding: 16px 20px; border-radius: 12px; border-left: 4px solid var(--blue); background: #fff; }
 .notice-error { border-left-color: var(--orange); }
 .notice-success { border-left-color: var(--teal); }
@@ -152,6 +160,7 @@ p { margin: 0 0 16px; }
 
 @media (max-width: 900px) {
   .claim-data { grid-template-columns: 1fr 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
   .hero-inner, .assist { grid-template-columns: 1fr; }
   .cards, .steps { grid-template-columns: 1fr; }
   .nav { display: none; }

@@ -58,6 +58,7 @@
 
         <div class="claim" data-claim hidden>
           <dl class="claim-data">
+            <div class="wide owner"><dt>Proprietario del veicolo</dt><dd data-field="owner"></dd></div>
             <div><dt>Codice</dt><dd data-field="code"></dd></div>
             <div><dt>Stato</dt><dd data-field="status"></dd></div>
             <div><dt>Polizza</dt><dd data-field="policy"></dd></div>
@@ -68,12 +69,28 @@
             <div><dt>Importo stimato</dt><dd data-field="estimated"></dd></div>
             <div><dt>Importo verificato</dt><dd data-field="verified"></dd></div>
           </dl>
-          <form class="form" data-submit>
-            <label for="verified-amount">Importo verificato (€)</label>
-            <div class="form-row">
-              <input id="verified-amount" name="amount" type="number" min="0" max="1000000" step="0.01" required>
-              <button class="btn btn-primary" type="submit">Invia perizia</button>
+          <form class="form inspection" data-submit>
+            <h3>Dati della perizia</h3>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="vehicle-brand">Marca</label>
+                <input id="vehicle-brand" name="brand" placeholder="Es. Fiat" maxlength="100" required>
+              </div>
+              <div class="form-field">
+                <label for="vehicle-model">Modello</label>
+                <input id="vehicle-model" name="model" placeholder="Es. Panda" maxlength="100" required>
+              </div>
+              <div class="form-field">
+                <label for="license-plate">Targa</label>
+                <input id="license-plate" name="plate" placeholder="Es. AB123CD" maxlength="9" required
+                       pattern="[A-Za-z]{2}\s?[0-9]{3}\s?[A-Za-z]{2}" title="Targa italiana, ad esempio AB123CD">
+              </div>
+              <div class="form-field">
+                <label for="verified-amount">Importo verificato (€)</label>
+                <input id="verified-amount" name="amount" type="number" min="0" max="1000000" step="0.01" required>
+              </div>
             </div>
+            <button class="btn btn-primary" type="submit">Invia perizia</button>
           </form>
         </div>
       </div>
@@ -98,11 +115,12 @@
     var TARGET_STATUS = 'Approval pending';
     var ORG_ID = '4b61be9c-7b5a-43dd-a62b-6dc4a01dccc7';
     var ORG_NAME = 'genesys-italy-sc';
-    var TOKEN_KEY = 'genesys-assicurazioni-expert-token';
+    var TOKEN_KEY = 'genesys-assicurazioni-expert-token-v2';
     var VERIFIER_KEY = 'genesys-assicurazioni-expert-verifier';
 
     var statuses = {};
     var current = null;
+    var owner = '';
 
     function $(selector) { return document.querySelector(selector); }
 
@@ -181,9 +199,22 @@
       return typeof value === 'number' ? value.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : '—';
     }
 
+    async function findOwner(policy) {
+      if (!policy) return '';
+      try {
+        var result = await api('GET', '/api/v2/externalcontacts/contacts?' + new URLSearchParams({ q: policy, pageSize: 10 }));
+        var contacts = result.entities || [];
+        var contact = contacts.find(function (c) { return c.type === 'Curated'; }) || contacts[0];
+        return contact ? [contact.firstName, contact.lastName].filter(Boolean).join(' ') : '';
+      } catch (error) {
+        return '';
+      }
+    }
+
     function showClaim(item) {
       var fields = item.customFields || {};
       var values = {
+        owner: owner || 'Non trovato: verifica il numero di polizza',
         code: shortCode(item.id),
         status: (statuses[statusOf(item)] || {}).name || '—',
         policy: fields.policy_number_identifier || '—',
@@ -197,6 +228,9 @@
       Object.keys(values).forEach(function (key) { $('[data-field="' + key + '"]').textContent = values[key]; });
       $('[data-claim]').hidden = false;
       $('#verified-amount').value = fields.verified_claim_amount_number > 0 ? fields.verified_claim_amount_number : '';
+      $('#vehicle-brand').value = fields.vehicle_brand_text || '';
+      $('#vehicle-model').value = fields.vehicle_model_text || '';
+      $('#license-plate').value = fields.license_plate_text || '';
     }
 
     function statusPath(fromId, toId) {
@@ -251,6 +285,8 @@
           current = items.find(function (item) { return item.id.replace(/-/g, '').toUpperCase().indexOf(code) === 0; });
           if (!current) return notice('Nessun sinistro trovato con il codice ' + code + ' (sinistri esaminati: ' + items.length + ').', 'error');
         }
+        var fields = current.customFields || {};
+        owner = fields.owner_name_text || await findOwner(fields.policy_number_identifier);
         showClaim(current);
         if (current.statusCategory === 'Closed') notice('Il sinistro è già chiuso: non è possibile aggiornare la perizia.', 'error');
       } catch (error) {
@@ -262,17 +298,25 @@
       event.preventDefault();
       if (!current) return;
       var amount = parseFloat($('#verified-amount').value);
+      var inspection = {
+        verified_claim_amount_number: amount,
+        vehicle_brand_text: $('#vehicle-brand').value.trim(),
+        vehicle_model_text: $('#vehicle-model').value.trim(),
+        license_plate_text: $('#license-plate').value.replace(/\s/g, '').toUpperCase()
+      };
+      if (owner) inspection.owner_name_text = owner;
       var target = Object.keys(statuses).find(function (id) { return statuses[id].name === TARGET_STATUS; });
       var path = statusOf(current) === target ? [] : statusPath(statusOf(current), target);
       if (current.statusCategory === 'Closed' || !path) return notice('Dallo stato attuale il sinistro non può passare in attesa di approvazione.', 'error');
       try {
-        await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { customFields: { verified_claim_amount_number: amount } });
+        await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { customFields: inspection });
         for (var i = 0; i < path.length; i++) {
           current = await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { statusId: path[i] });
         }
         current = await api('GET', '/api/v2/taskmanagement/workitems/' + current.id);
         showClaim(current);
-        notice('Perizia inviata: importo verificato ' + formatAmount(amount) + ', sinistro in attesa di approvazione.', 'success');
+        notice('Perizia inviata: ' + inspection.vehicle_brand_text + ' ' + inspection.vehicle_model_text + ' targa ' +
+          inspection.license_plate_text + ', importo verificato ' + formatAmount(amount) + '. Sinistro in attesa di approvazione.', 'success');
       } catch (error) {
         notice(error.message, 'error');
       }
