@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Area periti | Genesys Assicurazioni</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Genesys <strong>Assicurazioni</strong></span>
+      </a>
+      <nav class="nav">
+        <a href="index.html">Torna al sito</a>
+      </nav>
+      <div class="account" data-expert hidden>
+        <span class="greeting">Perito: <strong data-expert-name></strong></span>
+        <button class="link link-plain" data-logout>Esci</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="section expert">
+    <div class="container expert-inner">
+      <div>
+        <p class="eyebrow">Area periti</p>
+        <h1>Chiusura della <span class="accent">perizia</span></h1>
+        <p class="lead">Cerca il sinistro con il codice della pratica, verifica i dati e inserisci l'importo del danno accertato. La pratica passa in attesa di approvazione e il cliente riceve l'esito su WhatsApp quando viene approvata.</p>
+      </div>
+
+      <div class="panel" data-login-panel>
+        <h3>Accedi con Genesys Cloud</h3>
+        <p class="muted">Usa il tuo utente Genesys Cloud con accesso ai workitem dei sinistri.</p>
+        <button class="btn btn-primary" data-login>Accedi</button>
+      </div>
+
+      <div class="panel" data-work-panel hidden>
+        <form class="form" data-search>
+          <label for="claim-code">Codice del sinistro</label>
+          <div class="form-row">
+            <input id="claim-code" name="code" placeholder="Es. 11342EDE" autocomplete="off" required>
+            <button class="btn btn-ghost" type="submit">Cerca</button>
+          </div>
+        </form>
+
+        <div class="claim" data-claim hidden>
+          <dl class="claim-data">
+            <div><dt>Codice</dt><dd data-field="code"></dd></div>
+            <div><dt>Stato</dt><dd data-field="status"></dd></div>
+            <div><dt>Polizza</dt><dd data-field="policy"></dd></div>
+            <div><dt>Data dell'evento</dt><dd data-field="date"></dd></div>
+            <div><dt>Luogo</dt><dd data-field="location"></dd></div>
+            <div><dt>Perizia</dt><dd data-field="inspection"></dd></div>
+            <div class="wide"><dt>Descrizione</dt><dd data-field="description"></dd></div>
+            <div><dt>Importo stimato</dt><dd data-field="estimated"></dd></div>
+            <div><dt>Importo verificato</dt><dd data-field="verified"></dd></div>
+          </dl>
+          <form class="form" data-submit>
+            <label for="verified-amount">Importo verificato (€)</label>
+            <div class="form-row">
+              <input id="verified-amount" name="amount" type="number" min="0" max="1000000" step="0.01" required>
+              <button class="btn btn-primary" type="submit">Invia perizia</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <p class="notice" data-notice hidden></p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span class="brand-name">Genesys <strong>Assicurazioni</strong></span>
+      <p>Sito dimostrativo realizzato con Genesys Cloud. Genesys Assicurazioni è un marchio di fantasia: prodotti, dati e condizioni non sono reali.</p>
+    </div>
+  </footer>
+
+  <script>
+    var CLIENT_ID = '0f814697-83ee-4919-8d83-27c91fd6970c';
+    var REGION = 'mypurecloud.ie';
+    var REDIRECT_URI = location.origin + location.pathname;
+    var WORKTYPE = 'eb4812bc-4eff-44ee-ae9e-c59b4ef6a306';
+    var WORKBIN = '1386df72-7bd9-42f4-be10-c6fa29583b4f';
+    var TARGET_STATUS = 'Approval pending';
+    var TOKEN_KEY = 'genesys-assicurazioni-expert-token';
+    var VERIFIER_KEY = 'genesys-assicurazioni-expert-verifier';
+
+    var statuses = {};
+    var current = null;
+
+    function $(selector) { return document.querySelector(selector); }
+
+    function notice(text, kind) {
+      var box = $('[data-notice]');
+      box.textContent = text;
+      box.className = 'notice notice-' + (kind || 'info');
+      box.hidden = !text;
+    }
+
+    function base64Url(bytes) {
+      return btoa(String.fromCharCode.apply(null, new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function login() {
+      var verifier = base64Url(crypto.getRandomValues(new Uint8Array(48)));
+      sessionStorage.setItem(VERIFIER_KEY, verifier);
+      var challenge = base64Url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+      location.href = 'https://login.' + REGION + '/oauth/authorize?' + new URLSearchParams({
+        client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI,
+        code_challenge: challenge, code_challenge_method: 'S256'
+      });
+    }
+
+    async function exchangeCode(code) {
+      var response = await fetch('https://login.' + REGION + '/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code', code: code, redirect_uri: REDIRECT_URI,
+          client_id: CLIENT_ID, code_verifier: sessionStorage.getItem(VERIFIER_KEY) || ''
+        })
+      });
+      if (!response.ok) throw new Error('Accesso non riuscito (' + response.status + ')');
+      var token = await response.json();
+      sessionStorage.removeItem(VERIFIER_KEY);
+      sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ value: token.access_token, expires: Date.now() + token.expires_in * 1000 }));
+    }
+
+    function token() {
+      var saved = JSON.parse(sessionStorage.getItem(TOKEN_KEY) || 'null');
+      return saved && saved.expires > Date.now() + 60000 ? saved.value : null;
+    }
+
+    async function api(method, path, body) {
+      var response = await fetch('https://api.' + REGION + path, {
+        method: method,
+        headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (response.status === 401) { logout(); throw new Error('Sessione scaduta: accedi di nuovo.'); }
+      var data = response.status === 204 ? null : await response.json();
+      if (!response.ok) throw new Error((data && data.message) || ('Errore ' + response.status));
+      return data;
+    }
+
+    function logout() {
+      sessionStorage.removeItem(TOKEN_KEY);
+      $('[data-expert]').hidden = true;
+      $('[data-work-panel]').hidden = true;
+      $('[data-login-panel]').hidden = false;
+    }
+
+    function shortCode(id) { return id.slice(0, 8).toUpperCase(); }
+
+    function formatDate(value) {
+      if (!value) return '—';
+      var parts = value.slice(0, 10).split('-');
+      return parts[2] + '/' + parts[1] + '/' + parts[0];
+    }
+
+    function formatAmount(value) {
+      return typeof value === 'number' ? value.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : '—';
+    }
+
+    function showClaim(item) {
+      var fields = item.customFields || {};
+      var values = {
+        code: shortCode(item.id),
+        status: (statuses[item.statusId] || {}).name || '—',
+        policy: fields.policy_number_identifier || '—',
+        date: formatDate(fields.claim_date_date),
+        location: fields.claim_location_longtext || '—',
+        inspection: formatDate(fields.claim_inspection_date_date),
+        description: fields.claim_description_longtext || '—',
+        estimated: formatAmount(fields.estimated_claim_amount_number),
+        verified: formatAmount(fields.verified_claim_amount_number)
+      };
+      Object.keys(values).forEach(function (key) { $('[data-field="' + key + '"]').textContent = values[key]; });
+      $('[data-claim]').hidden = false;
+      $('#verified-amount').value = fields.verified_claim_amount_number > 0 ? fields.verified_claim_amount_number : '';
+    }
+
+    function statusPath(fromId, toId) {
+      var queue = [[fromId]], seen = {};
+      seen[fromId] = true;
+      while (queue.length) {
+        var path = queue.shift(), last = statuses[path[path.length - 1]];
+        if (path[path.length - 1] === toId) return path.slice(1);
+        (last && last.destinationStatuses || []).forEach(function (next) {
+          if (!seen[next.id]) { seen[next.id] = true; queue.push(path.concat(next.id)); }
+        });
+      }
+      return null;
+    }
+
+    async function start() {
+      $('[data-login-panel]').hidden = true;
+      $('[data-work-panel]').hidden = false;
+      $('[data-expert]').hidden = false;
+      try {
+        var me = await api('GET', '/api/v2/users/me');
+        $('[data-expert-name]').textContent = me.name;
+        var list = await api('GET', '/api/v2/taskmanagement/worktypes/' + WORKTYPE + '/statuses');
+        list.entities.forEach(function (status) { statuses[status.id] = status; });
+      } catch (error) {
+        notice(error.message, 'error');
+      }
+    }
+
+    $('[data-search]').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var code = $('#claim-code').value.replace(/[\s-]/g, '').toUpperCase();
+      $('[data-claim]').hidden = true;
+      notice('');
+      try {
+        var result = await api('POST', '/api/v2/taskmanagement/workitems/query', {
+          filters: [{ name: 'workbinId', type: 'String', operator: 'EQ', values: [WORKBIN] }], pageSize: 200
+        });
+        current = result.entities.find(function (item) { return item.id.replace(/-/g, '').toUpperCase().indexOf(code) === 0; });
+        if (!current) return notice('Nessun sinistro trovato con il codice ' + code + '.', 'error');
+        showClaim(current);
+        if (current.statusCategory === 'Closed') notice('Il sinistro è già chiuso: non è possibile aggiornare la perizia.', 'error');
+      } catch (error) {
+        notice(error.message, 'error');
+      }
+    });
+
+    $('[data-submit]').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      if (!current) return;
+      var amount = parseFloat($('#verified-amount').value);
+      var target = Object.keys(statuses).find(function (id) { return statuses[id].name === TARGET_STATUS; });
+      var path = current.statusId === target ? [] : statusPath(current.statusId, target);
+      if (current.statusCategory === 'Closed' || !path) return notice('Dallo stato attuale il sinistro non può passare in attesa di approvazione.', 'error');
+      try {
+        await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { customFields: { verified_claim_amount_number: amount } });
+        for (var i = 0; i < path.length; i++) {
+          current = await api('PATCH', '/api/v2/taskmanagement/workitems/' + current.id, { statusId: path[i] });
+        }
+        current = await api('GET', '/api/v2/taskmanagement/workitems/' + current.id);
+        showClaim(current);
+        notice('Perizia inviata: importo verificato ' + formatAmount(amount) + ', sinistro in attesa di approvazione.', 'success');
+      } catch (error) {
+        notice(error.message, 'error');
+      }
+    });
+
+    $('[data-login]').addEventListener('click', login);
+    $('[data-logout]').addEventListener('click', logout);
+
+    (async function () {
+      var code = new URLSearchParams(location.search).get('code');
+      if (code) {
+        history.replaceState(null, '', REDIRECT_URI);
+        try { await exchangeCode(code); } catch (error) { notice(error.message, 'error'); }
+      }
+      if (token()) start();
+    })();
+  </script>
+</body>
+</html>
