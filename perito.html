@@ -219,15 +219,21 @@
 
     $('[data-search]').addEventListener('submit', async function (event) {
       event.preventDefault();
-      var code = $('#claim-code').value.replace(/[\s-]/g, '').toUpperCase();
+      var typed = $('#claim-code').value.trim();
+      var code = typed.replace(/[\s-]/g, '').toUpperCase();
       $('[data-claim]').hidden = true;
       notice('');
       try {
-        var result = await api('POST', '/api/v2/taskmanagement/workitems/query', {
-          filters: [{ name: 'workbinId', type: 'String', operator: 'EQ', values: [WORKBIN] }], pageSize: 200
-        });
-        current = result.entities.find(function (item) { return item.id.replace(/-/g, '').toUpperCase().indexOf(code) === 0; });
-        if (!current) return notice('Nessun sinistro trovato con il codice ' + code + '.', 'error');
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(typed)) {
+          current = await api('GET', '/api/v2/taskmanagement/workitems/' + typed.toLowerCase());
+        } else {
+          var result = await api('POST', '/api/v2/taskmanagement/workitems/query', {
+            filters: [{ name: 'workbinId', type: 'String', operator: 'EQ', values: [WORKBIN] }], pageSize: 200
+          });
+          var items = result.entities || [];
+          current = items.find(function (item) { return item.id.replace(/-/g, '').toUpperCase().indexOf(code) === 0; });
+          if (!current) return notice('Nessun sinistro trovato con il codice ' + code + ' (sinistri esaminati: ' + items.length + ').', 'error');
+        }
         showClaim(current);
         if (current.statusCategory === 'Closed') notice('Il sinistro è già chiuso: non è possibile aggiornare la perizia.', 'error');
       } catch (error) {
